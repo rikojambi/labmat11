@@ -48,6 +48,7 @@ Buka aplikasi di Chrome/Edge, lalu pilih **Install app** dari menu browser. Sete
 - **Enrichment**: peta kompetensi, tantangan dunia kerja (TSM/Pemasaran/PPLG), kalkulator eksplorasi, catatan, sertifikat cetak/PDF.
 
 ### Guru
+- **PIN lokal** saat membuka dashboard: dibuat sendiri pada pemakaian pertama (4–8 digit), disimpan sebagai hash + salt di IndexedDB, terkunci otomatis saat tab ditutup, tombol **Kunci** untuk mengunci segera. Lupa PIN? Masukkan kode sinkronisasi Sheets pada layar kunci. PIN ini **bukan** kata sandi Google dan tidak dikirim ke Sheets.
 - Dashboard ringkasan kelas: rata-rata, tertinggi, terendah, ketuntasan, distribusi nilai, soal tersulit, capaian indikator, siswa perlu pendampingan.
 - Tabel siswa + drill-down jawaban, jurnal proses, telemetri, pembahasan, dan rincian penilaian.
 - Umpan balik per siswa/soal, penilaian terbuka perlu tinjauan, persetujuan/penolakan perubahan identitas.

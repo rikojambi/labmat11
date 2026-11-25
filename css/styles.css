@@ -152,6 +152,22 @@ tr:last-child td{border-bottom:0}
 .toast{background:var(--navy2);color:#fff;padding:.8rem 1rem;border-radius:12px;box-shadow:var(--shadow-lg);font-size:.87rem;animation:fade .2s;border-left:4px solid var(--teal)}
 .toast.bad{border-left-color:var(--bad)}.toast.ok{border-left-color:var(--ok)}
 
+/* ---------- Gerbang PIN guru ---------- */
+.gate-backdrop{position:fixed;inset:0;background:linear-gradient(140deg,#071a33f2,#0b2a4ff2);display:grid;place-items:center;padding:1rem;z-index:150;backdrop-filter:blur(5px);animation:fade .18s}
+.gate-card{background:#fff;border-radius:20px;width:min(400px,100%);padding:1.8rem;box-shadow:var(--shadow-lg);text-align:center;border-top:5px solid var(--teal)}
+.gate-icon{font-size:2.4rem;line-height:1;margin-bottom:.5rem}
+.gate-card h2{font-size:1.35rem;color:var(--navy2);margin:.2rem 0}
+.gate-card .muted{font-size:.88rem;color:var(--muted);margin:.4rem 0 1.1rem}
+.gate-card .field{text-align:left;margin-bottom:.8rem}
+.gate-card input{width:100%;font-size:1.15rem;letter-spacing:.25em;text-align:center;padding:.7rem;border:1px solid var(--line);border-radius:12px;color:var(--navy2);background:#fbfdff}
+.gate-card input:focus{outline:2px solid var(--teal);border-color:var(--teal)}
+.gate-card .notice{text-align:left;margin-bottom:.8rem;font-size:.83rem}
+.gate-card .btn{margin-top:.5rem}
+.w-full{width:100%}
+.gate-lupa{display:inline-block;margin-top:1rem;border:0;background:transparent;color:var(--teal-dark);font-size:.84rem;font-weight:700;cursor:pointer;padding:.3rem}
+.gate-lupa:hover{text-decoration:underline}
+.gate-card .hint-text{font-size:.76rem;color:var(--muted);margin-top:.9rem;line-height:1.45}
+
 /* ---------- Certificate ---------- */
 .certificate{background:#fff;border:12px solid var(--navy2);outline:2px solid var(--gold);outline-offset:-20px;padding:2.5rem;text-align:center;max-width:860px;margin:auto}
 .certificate h1{font-size:2.3rem;color:var(--navy2)}.certificate .seal{font-size:3rem}.certificate .name{font-size:2rem;color:var(--teal-dark);font-weight:800;margin:1rem 0}

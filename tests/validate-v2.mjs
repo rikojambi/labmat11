@@ -110,10 +110,18 @@ ok(!/localStorage/.test(gas), 'backend tidak boleh bergantung pada localStorage'
 const app = src('../js/app.js');
 ok(!/localStorage/.test(app), 'frontend tidak boleh menyimpan pekerjaan siswa di localStorage');
 
+// --- Gerbang PIN guru (lokal, bukan akun Google/Sheets) ---
+const auth = src('../js/teacher-auth.js');
+ok(/hashPIN|SHA-256/.test(auth), 'PIN guru harus disimpan sebagai hash, bukan teks biasa');
+ok(/sessionStorage/.test(auth), 'status terbuka PIN harus hilang saat tab ditutup');
+ok(!/localStorage/.test(auth), 'PIN guru tidak boleh disimpan di localStorage');
+const dashboard = src('../teacher/dashboard.js');
+ok(dashboard.includes('ensureTeacherGate'), 'dashboard guru harus memakai gerbang PIN sebelum memuat data');
+
 // --- Service worker mutakhir ---
 const sw = src('../sw.js');
-ok(sw.includes('labmat-smk-xi-v5'), 'versi cache service worker harus v5');
-for (const f of ['flow.js', 'timing.js', 'anomaly.js', 'realtime.js', 'feedback.js', 'essay.js', 'notebook.js', 'data/essays.js', 'data/notebook.js']) {
+ok(sw.includes('labmat-smk-xi-v6'), 'versi cache service worker harus v6');
+for (const f of ['flow.js', 'timing.js', 'anomaly.js', 'realtime.js', 'feedback.js', 'essay.js', 'notebook.js', 'teacher-auth.js', 'data/essays.js', 'data/notebook.js']) {
   ok(sw.includes(f), `precache service worker belum memuat ${f}`);
 }
 

@@ -83,10 +83,11 @@ Panduan ini untuk guru/admin yang menyiapkan backend sinkronisasi dari nol. Tota
 
 1. Jalankan aplikasi: klik `start.bat` di folder `LABMAT-SMK-XI`.
 2. Buka `http://localhost:8765/teacher.html`.
-3. Buka menu **Koneksi & Aturan** (atau isi modal yang muncul saat pertama kali).
-4. Isi **URL Web App** dengan URL dari Langkah 4.
-5. Isi **Kode sinkronisasi** dengan token dari Langkah 3.
-6. Klik **Simpan koneksi**.
+3. **Pemakaian pertama:** buat PIN guru (4–8 digit angka), ulangi, lalu klik **Simpan PIN & masuk**. PIN ini mengunci dashboard di komputer tersebut; disimpan sebagai hash di IndexedDB, bukan di Google Sheets. Saat tab ditutup atau tombol **🔒 Kunci** ditekan, dashboard terkunci lagi. Jika lupa PIN, klik **Lupa PIN?** dan masukkan kode sinkronisasi dari Langkah 3.
+4. Isi modal **Hubungkan dashboard guru** (atau buka menu **Koneksi & Aturan**).
+5. Isi **URL Web App** dengan URL dari Langkah 4.
+6. Isi **Kode sinkronisasi** dengan token dari Langkah 3.
+7. Klik **Simpan & muat data**.
 
 ### Di komputer/HP siswa
 

@@ -8,6 +8,7 @@ import { getFlowConfig, setFlowConfig } from '../js/flow.js';
 import { getTimingConfig, setTimingConfig, ALLOWED_SECONDS } from '../js/timing.js';
 import { getAnomalyConfig, setAnomalyConfig } from '../js/anomaly.js';
 import { teacherAction, startTeacherPolling, setRealtimeConfig, applyPulledRealtime } from '../js/realtime.js';
+import { ensureTeacherGate, lock as lockTeacher, hasPin, setPin, hapusPin } from '../js/teacher-auth.js';
 
 let data = null, stats = null, pollStop = null;
 const view = document.getElementById('teacherView');
@@ -16,6 +17,14 @@ const routes = ['ringkasan', 'siswa', 'nilai', 'jawaban', 'proses', 'umpan', 'mo
 async function boot() {
   try { await openDB(); await seedDefaults(); }
   catch (e) { view.innerHTML = `<div class="notice bad">IndexedDB tidak tersedia: ${escapeHtml(e.message)}</div>`; return; }
+
+  // Gerbang PIN lokal — jalankan sebelum data apa pun dimuat atau ditampilkan.
+  document.getElementById('lockBtn').onclick = () => { lockTeacher(); location.reload(); };
+  if (!(await ensureTeacherGate(document.getElementById('teacherGate')))) {
+    view.innerHTML = '<div class="notice bad">Gerbang PIN gagal dimuat. Muat ulang halaman.</div>';
+    return;
+  }
+
   document.getElementById('refreshBtn').onclick = () => load(true);
   document.getElementById('exportBtn').onclick = () => {
     if (!stats) { toast('Muat data terlebih dahulu.', 'bad'); return; }
@@ -373,9 +382,9 @@ function pageUmpan() {
 }
 
 async function pagePengaturan() {
-  const [cfg, weights, feat, tcfg, acfg, fcfg, rcfg, ncfg] = await Promise.all([
+  const [cfg, weights, feat, tcfg, acfg, fcfg, rcfg, ncfg, pinAktif] = await Promise.all([
     getSyncConfig(), getConfig('weights'), getConfig('features'), getTimingConfig(),
-    getAnomalyConfig(), getFlowConfig(), getConfig('realtime'), getConfig('notebook')
+    getAnomalyConfig(), getFlowConfig(), getConfig('realtime'), getConfig('notebook'), hasPin()
   ]);
   const opt = (values, selected) => values.map(v => `<option value="${v}" ${Number(selected) === Number(v) ? 'selected' : ''}>${v} detik</option>`).join('');
   const kirim = async (key, payload, pesan) => {
@@ -440,7 +449,17 @@ async function pagePengaturan() {
 
     <div class="card"><h3>Data lokal &amp; cadangan</h3><p class="muted">Jika guru belum terhubung internet, siswa dapat mengekspor cadangan JSON dari menu Pengaturan, lalu impor di sini.</p>
       <div class="row"><label class="btn btn-ghost">⬆ Impor cadangan siswa<input type="file" id="imp" accept="application/json" hidden></label>
-      <button class="btn btn-ghost" id="downloadCache">⬇ Unduh data dashboard (JSON)</button></div></div></div>`;
+      <button class="btn btn-ghost" id="downloadCache">⬇ Unduh data dashboard (JSON)</button></div></div>
+
+    <div class="card"><h3>🔒 PIN guru</h3>
+      <p class="muted">PIN mengunci dashboard di perangkat ini. Disimpan sebagai hash di IndexedDB, tidak dikirim ke Google Sheets. Status: <b id="pinStatus">${pinAktif ? 'PIN aktif' : 'Belum ada PIN'}</b>.</p>
+      <div class="grid cols-2">
+        ${field('PIN baru (4–8 digit)', '<input id="pinBaru" type="password" inputmode="numeric" maxlength="8" placeholder="••••">')}
+        ${field('Ulangi PIN', '<input id="pinUlang" type="password" inputmode="numeric" maxlength="8" placeholder="••••">')}
+      </div>
+      <div class="row mt-2"><button class="btn btn-primary" id="pinSave">Simpan PIN</button>
+        <button class="btn btn-ghost" id="pinHapus">Hapus PIN</button></div>
+      <p class="hint-text">Lupa PIN? Klik "Lupa PIN?" pada layar kunci, lalu masukkan kode sinkronisasi guru.</p></div></div>`;
 
   view.querySelector('#gSave').onclick = async () => { await setSyncConfig({ url: view.querySelector('#gUrl').value.trim(), token: view.querySelector('#gToken').value.trim() }); toast('Koneksi disimpan.', 'ok'); };
   view.querySelector('#wSave').onclick = async () => {
@@ -509,6 +528,21 @@ async function pagePengaturan() {
     } catch (err) { toast('Gagal impor: ' + err.message, 'bad'); }
   };
   view.querySelector('#downloadCache').onclick = () => downloadFile('dashboard-labmat.json', JSON.stringify(data || {}, null, 2), 'application/json');
+  view.querySelector('#pinSave').onclick = async () => {
+    const a = view.querySelector('#pinBaru').value.trim();
+    const b = view.querySelector('#pinUlang').value.trim();
+    if (!/^\d{4,8}$/.test(a)) { toast('PIN harus 4–8 digit angka.', 'bad'); return; }
+    if (a !== b) { toast('PIN dan ulangan tidak sama.', 'bad'); return; }
+    await setPin(a);
+    view.querySelector('#pinBaru').value = ''; view.querySelector('#pinUlang').value = '';
+    view.querySelector('#pinStatus').textContent = 'PIN aktif';
+    toast('PIN guru tersimpan.', 'ok');
+  };
+  view.querySelector('#pinHapus').onclick = async () => {
+    await hapusPin();
+    view.querySelector('#pinStatus').textContent = 'Belum ada PIN';
+    toast('PIN dihapus. Layar kunci muncul lagi saat halaman dibuka ulang.', 'ok');
+  };
 }
 
 boot();
