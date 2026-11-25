@@ -1,0 +1,11 @@
+{
+  "name": "labmat-smk-xi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Laboratorium Matematika Digital untuk siswa SMK kelas XI",
+  "scripts": {
+    "start": "node server.js 8765",
+    "test": "node tests/validate-questions.mjs && node tests/validate-data.mjs && node tests/validate-v2.mjs && node tests/check-syntax.mjs"
+  }
+}

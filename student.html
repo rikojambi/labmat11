@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LABMAT SMK XI — Siswa</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0b2a4f">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="app-body">
+<div id="appShell" class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand side-brand" href="./index.html"><span class="brand-mark">∑</span><span><strong>LABMAT</strong><small>SMK XI</small></span></a>
+    <p class="side-caption">MENU BELAJAR</p>
+    <nav class="side-nav" id="sideNav">
+      <a href="#/beranda" data-route="beranda"><i>🏠</i>Beranda</a>
+      <a href="#/materi" data-route="materi"><i>📚</i>Materi &amp; Simulasi</a>
+      <a href="#/latihan" data-route="latihan"><i>🪜</i>Latihan Terpandu</a>
+      <a href="#/uraian" data-route="uraian"><i>✍️</i>Uraian Terstruktur</a>
+      <a href="#/asesmen" data-route="asesmen"><i>🔥</i>Asesmen HOTS</a>
+      <a href="#/umpanbalik" data-route="umpanbalik"><i>💬</i>Umpan Balik</a>
+      <a href="#/bukutulis" data-route="bukutulis"><i>📓</i>Latihan Buku Tulis</a>
+      <a href="#/alur" data-route="alur"><i>🧭</i>Alur Belajar</a>
+      <a href="#/progres" data-route="progres"><i>📊</i>Progres &amp; Kompetensi</a>
+      <a href="#/eksporasi" data-route="eksporasi"><i>🧪</i>Kalkulator &amp; Tantangan</a>
+      <a href="#/catatan" data-route="catatan"><i>📝</i>Catatan Belajar</a>
+      <a href="#/sertifikat" data-route="sertifikat"><i>🎓</i>Sertifikat</a>
+    </nav>
+    <div class="side-bottom">
+      <a href="#/pengaturan" data-route="pengaturan"><i>⚙️</i>Pengaturan</a>
+      <a href="./index.html"><i>↩️</i>Halaman Awal</a>
+    </div>
+  </aside>
+  <div class="app-main">
+    <header class="app-header">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Buka menu">☰</button>
+      <div class="header-title"><h1 id="pageTitle">Beranda</h1><p id="pageSubtitle">Laboratorium Matematika Digital</p></div>
+      <div class="header-actions">
+        <button class="sync-chip" id="syncChip" title="Klik untuk sinkronisasi manual"><span class="dot"></span><span id="syncLabel">Cek status</span></button>
+        <button class="identity-chip" id="identityChip"><span class="avatar">👤</span><span id="identityLabel">Siswa</span></button>
+      </div>
+    </header>
+    <main id="view" class="view" tabindex="-1"><div class="loading">Menyiapkan laboratorium…</div></main>
+  </div>
+</div>
+<div id="warningHost" class="warning-host" aria-live="polite"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot" class="toast-root" aria-live="polite"></div>
+<script type="module" src="./js/app.js"></script>
+<script type="module">
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>

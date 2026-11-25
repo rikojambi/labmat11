@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LABMAT SMK XI — Dashboard Guru</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0b2a4f">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="app-body teacher-body">
+<div class="app-shell">
+  <aside class="sidebar" id="teacherSidebar">
+    <a class="brand side-brand" href="./index.html"><span class="brand-mark">∑</span><span><strong>LABMAT</strong><small>GURU XI</small></span></a>
+    <p class="side-caption">DASHBOARD GURU</p>
+    <nav class="side-nav" id="teacherNav">
+      <a href="#/ringkasan" data-route="ringkasan"><i>📊</i>Ringkasan Kelas</a>
+      <a href="#/siswa" data-route="siswa"><i>👥</i>Data Siswa</a>
+      <a href="#/nilai" data-route="nilai"><i>🎯</i>Nilai &amp; Modul</a>
+      <a href="#/jawaban" data-route="jawaban"><i>📄</i>Jawaban Siswa</a>
+      <a href="#/proses" data-route="proses"><i>🔍</i>Proses &amp; Refleksi</a>
+      <a href="#/umpan" data-route="umpan"><i>💬</i>Umpan Balik</a>
+      <a href="#/monitoring" data-route="monitoring"><i>🚨</i>Pemantauan Langsung</a>
+      <a href="#/pengaturan" data-route="pengaturan"><i>⚙️</i>Koneksi &amp; Aturan</a>
+    </nav>
+    <div class="side-bottom"><a href="./index.html"><i>↩️</i>Halaman Awal</a></div>
+  </aside>
+  <div class="app-main">
+    <header class="app-header">
+      <button class="icon-btn menu-btn" id="teacherMenuBtn" aria-label="Buka menu">☰</button>
+      <div class="header-title"><h1 id="teacherPageTitle">Ringkasan Kelas</h1><p id="teacherPageSubtitle">Pantau progres dan proses belajar siswa</p></div>
+      <div class="header-actions">
+        <button class="btn btn-ghost btn-sm" id="refreshBtn">🔄 Muat Ulang</button>
+        <button class="btn btn-primary btn-sm" id="exportBtn">⬇️ Unduh CSV</button>
+      </div>
+    </header>
+    <main id="teacherView" class="view"><div class="loading">Menyiapkan dashboard…</div></main>
+  </div>
+</div>
+<div id="teacherModalRoot"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot" class="toast-root" aria-live="polite"></div>
+<script type="module" src="./teacher/dashboard.js"></script>
+<script type="module">
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>

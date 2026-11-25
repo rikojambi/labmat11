@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LABMAT SMK XI — Laboratorium Matematika Digital</title>
+<meta name="description" content="Pembelajaran matematika interaktif untuk siswa SMK kelas XI.Offline-first, terhubung ke Google Sheets.">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0b2a4f">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body class="landing">
+<div class="glow glow-a"></div><div class="glow glow-b"></div>
+<header class="topbar">
+  <a class="brand" href="./index.html"><span class="brand-mark">∑</span><span><strong>LABMAT</strong><small>SMK XI</small></span></a>
+  <nav class="topnav"><a href="#fitur">Fitur</a><a href="#cara">Cara Pakai</a><a href="./student.html">Buka Aplikasi</a></nav>
+</header>
+<main class="landing-main">
+  <section class="hero">
+    <div class="hero-copy">
+      <span class="pill">📐 Kurikulum SMK Kelas XI · Matematika</span>
+      <h1>Laboratorium<br><em>Matemika Digital</em></h1>
+      <p>Belajar barisan–deret dan lingkaran lewat simulasi nyata bengkel, retail, dan dunia kerja. Proses berpikirmu tercatat, bukan hanya jawaban akhirnya.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="./student.html">🚀 Mulai Belajar (Siswa)</a>
+        <a class="btn btn-ghost btn-lg" href="./teacher.html">👩‍🏫 Dashboard Guru</a>
+      </div>
+      <div class="hero-stats">
+        <div><strong>3</strong><span>Modul materi</span></div>
+        <div><strong>20</strong><span>Soal HOTS</span></div>
+        <div><strong>100%</strong><span>Offline</span></div>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <div class="art-card art-main">
+        <div class="art-title">Pertumbuhan Tabungan</div>
+        <canvas id="heroChart" width="520" height="300"></canvas>
+        <div class="art-foot"><span>Un = a + (n−1)b</span><span class="teal">Live simulation</span></div>
+      </div>
+      <div class="art-card art-float">📈 <strong>Aritmetika</strong><small>Pertumbuhan tetap</small></div>
+      <div class="art-card art-float2">⚙️ <strong>Lingkaran</strong><small>Roda &amp; puli mesin</small></div>
+    </div>
+  </section>
+
+  <section id="fitur" class="section">
+    <h2 class="section-title">Semua yang dibutuhkan untuk belajar tuntas</h2>
+    <div class="feature-grid">
+      <article class="feature"><span>🧮</span><h3>Materi + Visualisasi</h3><p>Geser slider, grafik dan tabel berubah langsung. Konsep abstrak jadi terlihat.</p></article>
+      <article class="feature"><span>🪜</span><h3>Latihan Terpandu</h3><p>Lima tahap scaffolding dengan petunjuk bertingkat, bukan langsung kunci jawaban.</p></article>
+      <article class="feature"><span>🔥</span><h3>Asesmen HOTS</h3><p>20 soal kontekstual: pilihan ganda, multiple response, dan completion satu kata.</p></article>
+      <article class="feature"><span>🛡️</span><h3>Proses Tercatat</h3><p>Jurnal berpikir, durasi, percobaan, dan refleksi membantu guru melihat pemahaman.</p></article>
+      <article class="feature"><span>📶</span><h3>Offline Dulu, Sinkron Kemudian</h3><p>Data aman di IndexedDB. Antrean otomatis mengirim ke Google Sheets saat online.</p></article>
+      <article class="feature"><span>🎓</span><h3>Sertifikat &amp; Peta Kompetensi</h3><p>Lihat penguasaan tiap indikator dan unduh sertifikat setelah tuntas.</p></article>
+    </div>
+  </section>
+
+  <section id="cara" class="section">
+    <h2 class="section-title">Tiga langkah untuk mulai</h2>
+    <div class="steps">
+      <div class="step"><b>1</b><h3>Jalankan start.bat</h3><p>Klik dua kali <code>start.bat</code>. Server lokal aktif dan browser membuka aplikasi. Tidak perlu internet.</p></div>
+      <div class="step"><b>2</b><h3>Isi identitas siswa</h3><p>Nama, NISN, kelas, program keahlian, dan sekolah. Identitas terkunci setelah disimpan.</p></div>
+      <div class="step"><b>3</b><h3>Hubungkan guru (opsional)</h3><p>Guru menyiapkan Google Apps Script, lalu siswa memasukkan URL Web App dan kode sinkronisasi di menu Pengaturan.</p></div>
+    </div>
+  </section>
+</main>
+<footer class="footer">LABMAT SMK XI · Dibuat untuk pembelajaran matematika yang bermakna · <a href="./README.md">Panduan lengkap</a></footer>
+<script type="module">
+  const c = document.getElementById('heroChart'), x = c.getContext('2d');
+  x.fillStyle = '#0d335b'; x.fillRect(0, 0, c.width, c.height);
+  x.strokeStyle = 'rgba(255,255,255,.09)'; x.lineWidth = 1;
+  for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(0, i * 50); x.lineTo(c.width, i * 50); x.stroke(); }
+  const vals = Array.from({ length: 12 }, (_, i) => 50 + i * 32);
+  const grad = x.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, 'rgba(32,199,183,.55)'); grad.addColorStop(1, 'rgba(32,199,183,0)');
+  x.beginPath(); vals.forEach((v, i) => { const px = 30 + i * 42, py = c.height - 35 - v; i ? x.lineTo(px, py) : x.moveTo(px, py); });
+  x.lineTo(30 + 11 * 42, c.height - 35); x.lineTo(30, c.height - 35); x.closePath(); x.fillStyle = grad; x.fill();
+  x.beginPath(); vals.forEach((v, i) => { const px = 30 + i * 42, py = c.height - 35 - v; i ? x.lineTo(px, py) : x.moveTo(px, py); });
+  x.strokeStyle = '#20c7b7'; x.lineWidth = 4; x.stroke();
+  vals.forEach((v, i) => { x.beginPath(); x.arc(30 + i * 42, c.height - 35 - v, 4, 0, 7); x.fillStyle = '#ffd166'; x.fill(); });
+</script>
+<script type="module">
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>
