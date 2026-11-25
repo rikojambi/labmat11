@@ -118,10 +118,23 @@ ok(!/localStorage/.test(auth), 'PIN guru tidak boleh disimpan di localStorage');
 const dashboard = src('../teacher/dashboard.js');
 ok(dashboard.includes('ensureTeacherGate'), 'dashboard guru harus memakai gerbang PIN sebelum memuat data');
 
+// --- Pengiriman berkala siswa (30 menit) + draf ---
+const dbSrc = src('../js/database.js');
+ok(dbSrc.includes('intervalSec: 1800'), 'jeda sinkronisasi bawaan harus 30 menit');
+const syncSrc = src('../js/sync.js');
+ok(/syncIntervalSec|intervalSec/.test(syncSrc), 'startAutoSync harus memakai jeda dari konfigurasi');
+ok(syncSrc.includes('enqueueDrafts'), 'tiap jadwal kirim harus mengantrekan draf siswa');
+const draftSrc = src('../js/draft-sync.js');
+ok(draftSrc.includes("'JAWABAN_SOAL'") && draftSrc.includes("'URAIAN_TERPANDU'") && draftSrc.includes("'LATIHAN_BUKU'"),
+  'draf asesmen, uraian, dan buku tulis harus ikut dikirim');
+ok((draftSrc.match(/status: 'draf'/g) || []).length >= 3, 'semua draf harus dikirim dengan status draf');
+const anaSrc = src('../js/analytics.js');
+ok(anaSrc.includes('final(r)') || anaSrc.includes('final(x)'), 'draf tidak boleh masuk rekap nilai akhir');
+
 // --- Service worker mutakhir ---
 const sw = src('../sw.js');
-ok(sw.includes('labmat-smk-xi-v6'), 'versi cache service worker harus v6');
-for (const f of ['flow.js', 'timing.js', 'anomaly.js', 'realtime.js', 'feedback.js', 'essay.js', 'notebook.js', 'teacher-auth.js', 'data/essays.js', 'data/notebook.js']) {
+ok(sw.includes('labmat-smk-xi-v7'), 'versi cache service worker harus v7');
+for (const f of ['flow.js', 'timing.js', 'anomaly.js', 'realtime.js', 'feedback.js', 'essay.js', 'notebook.js', 'teacher-auth.js', 'draft-sync.js', 'data/essays.js', 'data/notebook.js']) {
   ok(sw.includes(f), `precache service worker belum memuat ${f}`);
 }
 

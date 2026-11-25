@@ -85,7 +85,9 @@ export async function getByIndex(store, index, value) {
 }
 
 const DEFAULTS = {
-  sync: { key: 'sync', url: '', token: '', autoSync: true, intervalSec: 60, lastSync: null },
+  // intervalSec = 1800 (30 menit): kirim draf + antrean berkala. Nilai lama 60 detik
+  // dimigrasikan oleh seedDefaults(); opsi UI mulai dari 5 menit.
+  sync: { key: 'sync', url: '', token: '', autoSync: true, intervalSec: 1800, lastSync: null },
   weights: { key: 'weights', jawaban: 60, proses: 20, interpretasi: 10, refleksi: 10 },
   features: { key: 'features', verificationEnabled: false, teacherControlled: false },
   activeSession: { key: 'activeSession', value: null },
@@ -142,6 +144,10 @@ export async function setConfig(key, value) {
 
 export async function seedDefaults() {
   for (const [key, val] of Object.entries(DEFAULTS)) if (!(await get('config', key))) await put('config', val);
+  // Migrasi: instalasi lama memakai 60 detik. Karena opsi tercepat sekarang 5 menit,
+  // nilai <=120 detik dianggap bawaan lama dan dinaikkan ke 30 menit.
+  const sink = await get('config', 'sync');
+  if (sink && Number(sink.intervalSec) <= 120) await put('config', { ...sink, intervalSec: 1800 });
 }
 
 export async function exportBackup() {

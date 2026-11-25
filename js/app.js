@@ -332,8 +332,13 @@ async function pagePengaturan() {
       <div class="grid cols-2">${field('URL Web App Apps Script', `<input id="syncUrl" value="${escapeHtml(sync.url)}" placeholder="https://script.google.com/macros/s/…/exec">`)}
         ${field('Kode sinkronisasi (token)', `<input id="syncToken" type="password" value="${escapeHtml(sync.token)}" placeholder="Dari sheet KONFIGURASI">`)}</div>
       <label class="row"><input type="checkbox" id="autoSync" ${sync.autoSync ? 'checked' : ''}> Sinkronisasi otomatis saat internet tersedia</label>
+      ${field('Kirim inputan ke guru setiap', `<select id="syncInterval" class="input">
+        ${[[300, '5 menit'], [900, '15 menit'], [1800, '30 menit'], [3600, '60 menit']]
+          .map(([v, l]) => `<option value="${v}" ${Number(sync.intervalSec || 1800) === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>`)}
       <div class="row mt-2"><button class="btn btn-primary" id="saveSync">Simpan pengaturan</button><button class="btn btn-ghost" id="testSync">Uji koneksi</button><button class="btn btn-soft" id="manualSync">Sinkronisasi manual</button></div>
-      <div class="notice mt-2">Status: ${q.unsynced ? q.unsynced + ' data belum terkirim' : 'semua terkirim'} · Terakhir sinkron: ${formatDateTime(sync.lastSync)}<br>
+      <div class="notice mt-2">Jadwal pengiriman: <b>setiap ${Math.round((sync.intervalSec || 1800) / 60)} menit</b>. Jawaban dan draf tetap tersimpan di perangkat seketika saat diketik; tombol <b>Sinkronisasi manual</b> dapat dipakai kapan saja.<br>
+        Status: ${q.unsynced ? q.unsynced + ' data belum terkirim' : 'semua terkirim'} · Terakhir sinkron: ${formatDateTime(sync.lastSync)}<br>
         Verifikasi pemahaman: <b>${feat.verificationEnabled ? 'AKTIF (diatur guru)' : 'nonaktif'}</b>${feat.teacherControlled ? ' · terkontrol guru' : ''}</div></div>
     <div class="card mb-2"><h3>Bobot penilaian</h3><p class="muted">Bobot lokal saat ini. Jika guru mengirim bobot lewat Google Sheets, nilai guru yang dipakai.</p>
       <div class="kpi-grid">${Object.entries(weights).filter(([k]) => k !== 'key').map(([k, v]) => `<div class="stat"><span>${k}</span><strong>${v}%</strong></div>`).join('')}</div></div>
@@ -342,8 +347,15 @@ async function pagePengaturan() {
         <button class="btn btn-danger" id="resetLocal">Hapus semua data lokal</button></div></div></div>`;
 
   view.querySelector('#saveSync').onclick = async () => {
-    await setSyncConfig({ url: view.querySelector('#syncUrl').value.trim(), token: view.querySelector('#syncToken').value.trim(), autoSync: view.querySelector('#autoSync').checked });
-    toast('Pengaturan sinkronisasi disimpan.', 'ok');
+    await setSyncConfig({
+      url: view.querySelector('#syncUrl').value.trim(),
+      token: view.querySelector('#syncToken').value.trim(),
+      autoSync: view.querySelector('#autoSync').checked,
+      intervalSec: Number(view.querySelector('#syncInterval').value) || 1800
+    });
+    await startAutoSync(setSyncStatus); // terapkan jeda baru tanpa muat ulang halaman
+    toast('Pengaturan sinkronisasi disimpan. Jadwal baru mulai berlaku.', 'ok');
+    await pagePengaturan();
   };
   view.querySelector('#testSync').onclick = async () => {
     try { await testConnection(); toast('Koneksi ke Google Sheets berhasil.', 'ok'); } catch (e) { toast('Gagal: ' + e.message, 'bad'); }

@@ -5,6 +5,9 @@ import { MODULES } from '../data/materials.js';
 import { QUESTIONS } from '../data/questions.js';
 import { MASTERY_MIN } from '../data/rubrics.js';
 
+// Draf yang dikirim berkala bukan nilai akhir — jangan masuk rekap/penilaian.
+const final = r => !['draf', 'draft'].includes(String(r?.status || '').toLowerCase());
+
 export async function studentAnalytics(identity) {
   if (!identity) return null;
   const responses = await getByIndex('responses', 'byStudent', identity.student_id);
@@ -12,7 +15,7 @@ export async function studentAnalytics(identity) {
   const sessions = await getByIndex('sessions', 'byStudent', identity.student_id);
   const practices = progress.filter(p => p.key?.startsWith('practice:') && p.state?.completed);
   const materials = progress.filter(p => p.key?.startsWith('module:'));
-  const summary = summarize(responses.filter(r => r.status === 'selesai'));
+  const summary = summarize(responses.filter(r => final(r) && r.status === 'selesai'));
   const totalPractice = 9;
   return {
     ...summary,
@@ -35,7 +38,7 @@ export function classAnalytics(data = {}) {
   for (const v of verifikasi) { const s = byStudent[v.student_id]; if (s) (s.verifikasi ||= []).push(v); }
 
   const students = Object.values(byStudent).map(s => {
-    const sum = summarize(s.jawaban.filter(r => r.status === 'selesai' || r.skor != null));
+    const sum = summarize(s.jawaban.filter(r => final(r) && (r.status === 'selesai' || r.skor != null)));
     return {
       student_id: s.student_id, nama: s.nama || 'Tanpa nama', nisn: s.nisn || '', kelas: s.kelas || '',
       program_keahlian: s.program_keahlian || '', sekolah: s.sekolah || '',
@@ -53,13 +56,13 @@ export function classAnalytics(data = {}) {
   nilai.forEach(n => distr[n >= 90 ? 4 : n >= 75 ? 3 : n >= 65 ? 2 : n >= 50 ? 1 : 0]++);
 
   const questionStats = QUESTIONS.map(q => {
-    const list = jawaban.filter(r => r.question_id === q.id && r.skor != null);
+    const list = jawaban.filter(r => final(r) && r.question_id === q.id && r.skor != null);
     const rataSkor = list.length ? list.reduce((a, r) => a + Number(r.skor || 0), 0) / list.length : 0;
     return { id: q.id, materi: q.materi, indikator: q.indikator, level: q.level, n: list.length, rata: Math.round(rataSkor), salah: list.filter(r => !r.benar).length };
   }).filter(q => q.n).sort((a, b) => a.rata - b.rata);
 
   const indicatorMap = {};
-  for (const r of jawaban.filter(x => x.indikator && x.skor != null)) {
+  for (const r of jawaban.filter(x => final(x) && x.indikator && x.skor != null)) {
     indicatorMap[r.indikator] ||= []; indicatorMap[r.indikator].push(Number(r.skor));
   }
   const indikator = Object.entries(indicatorMap).map(([name, arr]) => ({

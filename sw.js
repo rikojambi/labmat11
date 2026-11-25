@@ -1,5 +1,5 @@
 /* LABMAT SMK XI service worker — offline-first app shell (revisi v2) */
-const CACHE = 'labmat-smk-xi-v6';
+const CACHE = 'labmat-smk-xi-v7';
 const SHELL = [
   './', './index.html', './student.html', './teacher.html', './manifest.json',
   './css/styles.css', './assets/icon.svg', './assets/icon-192.png', './assets/icon-512.png',
@@ -8,7 +8,7 @@ const SHELL = [
   './js/learning.js', './js/guided-practice.js', './js/quiz.js', './js/scoring.js',
   './js/sync.js', './js/analytics.js', './js/challenges.js', './js/flow.js',
   './js/timing.js', './js/anomaly.js', './js/realtime.js', './js/feedback.js',
-  './js/essay.js', './js/notebook.js', './js/teacher-auth.js',
+  './js/essay.js', './js/notebook.js', './js/teacher-auth.js', './js/draft-sync.js',
   './data/materials.js', './data/questions.js', './data/practice.js', './data/rubrics.js',
   './data/challenges.js', './data/essays.js', './data/notebook.js',
   './teacher/dashboard.js'

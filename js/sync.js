@@ -26,6 +26,13 @@ export async function getSyncConfig() { return getConfig('sync'); }
 export const setSyncConfig = values => setConfig('sync', values);
 export const isOnline = () => navigator.onLine !== false;
 
+/** Jeda kirim otomatis. Default 30 menit; opsi tercepat 5 menit. */
+export function syncIntervalSec(cfg = {}) {
+  const n = Number(cfg.intervalSec);
+  if (!Number.isFinite(n) || n < 300) return 1800;
+  return Math.min(n, 86400);
+}
+
 export async function enqueue(op, payload, idempotencyKey) {
   if (!PUSH_OPS.has(op)) throw new Error('Operasi sinkronisasi tidak dikenali: ' + op);
   const key = String(idempotencyKey || `${op}:${payload?.id || payload?.response_id || Date.now()}`);
@@ -225,20 +232,38 @@ export async function pull({ full = false, since = null } = {}) {
   return data;
 }
 
-let timer = null;
-export function startAutoSync(onStatus) {
+let timer = null, onlineHandler = null;
+export async function startAutoSync(onStatus) {
   const tick = async () => {
     const cfg = await getSyncConfig();
     if (!cfg.autoSync || !cfg.url || !cfg.token) return;
+    const detik = syncIntervalSec(cfg);
+
+    // Kirim draf yang sedang diketik siswa (jawaban asesmen, uraian, buku tulis,
+    // dan waktu sesi) sebelum memproses antrean. Penyimpanan lokal tetap terjadi
+    // seketika saat siswa mengetik — ini hanya jadwal pengirimannya ke Sheets.
+    try {
+      const { enqueueDrafts } = await import('./draft-sync.js');
+      const me = await get('identity', 'current');
+      await enqueueDrafts(me?.student_id, Math.floor(Date.now() / (detik * 1000)));
+    } catch (e) { console.warn('Gagal menyiapkan draf untuk dikirim:', e); }
+
     const q = await queueSummary();
     if (q.unsynced) await processQueue({ onStatus });
     if (isOnline()) await pull().catch(() => {});
   };
   if (timer) clearInterval(timer);
-  timer = setInterval(tick, 60000);
-  window.addEventListener('online', () => tick());
+  if (onlineHandler) window.removeEventListener('online', onlineHandler);
+  const cfgAwal = getSyncConfig();
+  timer = setInterval(tick, syncIntervalSec(await cfgAwal));
+  onlineHandler = () => tick();
+  window.addEventListener('online', onlineHandler);
   tick();
-  return () => { if (timer) clearInterval(timer); timer = null; };
+  return () => {
+    if (timer) clearInterval(timer);
+    if (onlineHandler) window.removeEventListener('online', onlineHandler);
+    timer = null; onlineHandler = null;
+  };
 }
 
 export async function testConnection() {

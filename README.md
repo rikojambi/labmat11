@@ -57,8 +57,10 @@ Buka aplikasi di Chrome/Edge, lalu pilih **Install app** dari menu browser. Sete
 
 ### Sinkronisasi
 - Antrean IndexedDB dengan `idempotency_key`, retry eksponensial, indikator status, sinkronisasi manual & otomatis.
+- **Kirim otomatis setiap 30 menit** (dapat diubah ke 5/15/60 menit di Pengaturan). Setiap jadwal mengirim antrean **dan draf yang sedang diketik** (jawaban asesmen, uraian, refleksi buku tulis, waktu sesi). Draf berstatus `draf` dan tidak dihitung sebagai nilai akhir; saat siswa menekan "kirim", baris yang sama diperbarui bukan diduplikat.
+- Pekerjaan tetap tersimpan di IndexedDB **seketika** saat diketik; tombol **Sinkronisasi manual** bisa dipakai kapan saja tanpa menunggu jadwal.
 - Data lokal **tidak dihapus** sebelum server mengonfirmasi penerimaan.
-- Backend Apps Script gratis → Google Sheets (9 sheet). Lihat [`google-apps-script/README.md`](google-apps-script/README.md).
+- Backend Apps Script gratis → Google Sheets (16 sheet). Lihat [`google-apps-script/README.md`](google-apps-script/README.md).
 
 ---
 
