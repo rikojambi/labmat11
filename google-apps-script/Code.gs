@@ -1,10 +1,27 @@
 /**
- * LABMAT SMK XI — API sinkronisasi Google Apps Script (v1 + revisi v2).
+ * LABMAT SMK XI — Backend sinkronisasi Google Apps Script (v1 + revisi v2).
+ *
  * Deployment: Web App, akses "Anyone" (token diverifikasi di dalam skrip).
  * Token admin dibuat oleh setup() dan disimpan di sheet KONFIGURASI — TIDAK ada di frontend.
  * Sheet v1 dipertahankan; sheet v2 ditambahkan tanpa menghapus data lama.
+ *
+ * CARA PAKAI (ringkas):
+ *   1. Tempel file ini ke editor Apps Script spreadsheet.
+ *   2. Jalankan setup() sekali → membuat/migrasi 16 sheet + token + konfigurasi awal.
+ *   3. Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone).
+ *   4. Salin Web app URL + token (sheet KONFIGURASI) ke menu Pengaturan aplikasi.
+ *
+ * Fungsi admin yang bisa dijalankan dari editor:
+ *   setup()          - inisialisasi & migrasi lengkap (aman dijalankan ulang)
+ *   rotateToken()    - ganti kode sinkronisasi
+ *   seedDefaults()   - isi konfigurasi awal yang belum ada
+ *   healthCheck()    - laporan kondisi semua sheet
+ *   testPushPull()   - uji tulis-baca tanpa meninggalkan data uji
  */
 var SS = SpreadsheetApp.getActiveSpreadsheet();
+
+/** Cache status sheet agar tidak migrasi berulang dalam satu eksekusi. */
+var READY = {};
 
 var HEADERS = {
   SISWA: ['student_id', 'nisn', 'nama', 'kelas', 'program_keahlian', 'sekolah', 'tanggal_daftar', 'idempotency_key', 'timestamp'],
@@ -68,35 +85,154 @@ function pick(headers, p) {
 }
 function json(v) { return v === undefined || v === null ? '' : (typeof v === 'string' ? v : JSON.stringify(v)); }
 function parse(v) { try { return JSON.parse(v); } catch (e) { return v; } }
+function alertSafe(msg) { try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); } }
 
-/** Jalankan sekali dari editor Apps Script untuk membuat sheet & token. Aman dijalankan ulang. */
+/* =========================================================================
+   ADMIN / SETUP — dijalankan dari editor Apps Script
+   ========================================================================= */
+
+/**
+ * Pastikan sheet ada DAN kolomnya sesuai HEADERS.
+ * Jika sheet lama sudah punya data, kolom disusun ulang berdasarkan nama header
+ * (data tidak hilang), sehingga pembaruan v2 (mis. warning_id) aman.
+ */
+function ensureSheet(name) {
+  if (READY[name]) return SS.getSheetByName(name);
+  var headers = HEADERS[name] || [];
+  if (!headers.length) throw new Error('Definisi sheet tidak ditemukan: ' + name);
+  var sh = SS.getSheetByName(name) || SS.insertSheet(name);
+  var lastCol = sh.getLastColumn();
+  var old = lastCol ? sh.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  var same = old.length === headers.length && headers.every(function (h, i) { return old[i] === h; });
+  if (!same) {
+    var lastRow = sh.getLastRow();
+    var vals = lastRow > 1 ? sh.getRange(1, 1, lastRow, Math.max(old.length, 1)).getValues() : [old];
+    var idx = {};
+    old.forEach(function (h, i) { idx[h] = i; });
+    var out = vals.map(function (row, r) {
+      if (r === 0) return headers.slice();
+      return headers.map(function (h) { return idx[h] !== undefined ? row[idx[h]] : ''; });
+    });
+    if (lastRow > 1 || old.length) sh.clearContents();
+    sh.getRange(1, 1, out.length, headers.length).setValues(out);
+    Logger.log('Sheet ' + name + ' dimigrasi ke ' + headers.length + ' kolom.');
+  }
+  READY[name] = true;
+  return sh;
+}
+
+/** Inisialisasi lengkap. Aman dijalankan ulang (idempoten). */
 function setup() {
-  Object.keys(HEADERS).forEach(function (name) { getOrCreateSheet(name, HEADERS[name]); });
+  Object.keys(HEADERS).forEach(ensureSheet);
   var sh = SS.getSheetByName('KONFIGURASI');
   var tokenRow = findRow(sh, 'kunci', 'token');
+  var dibuat = false;
   if (!tokenRow) {
     var token = Utilities.getUuid() + '-' + Utilities.getUuid();
     sh.appendRow(['token', token, 'setup:' + Date.now(), new Date().toISOString()]);
-    Logger.log('TOKEN SINKRONISASI: ' + token);
-    SpreadsheetApp.getUi().alert('Token sinkronisasi dibuat. Lihat sheet KONFIGURASI baris kunci=token. Salin ke aplikasi.');
-  } else {
-    SpreadsheetApp.getUi().alert('Token sudah ada. Sheet revisi v2 sudah ditambahkan bila belum ada.');
+    Logger.log('TOKEN SINKRONISASI BARU: ' + token);
+    dibuat = true;
   }
+  var seedCount = seedDefaults();
+  var pesan = 'Setup selesai: ' + Object.keys(HEADERS).length + ' sheet siap, ' + seedCount +
+    ' konfigurasi awal ditambahkan. ' + (dibuat ? 'Token baru dibuat (lihat Log & sheet KONFIGURASI).' : 'Token lama dipertahankan.');
+  Logger.log(pesan);
+  alertSafe(pesan);
+  return pesan;
 }
 
-function getOrCreateSheet(name, headers) {
-  var sh = SS.getSheetByName(name) || SS.insertSheet(name);
-  if (sh.getLastRow() === 0 || sh.getRange(1, 1).getValue() === '') sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-  return sh;
+/** Isi baris konfigurasi awal yang belum ada; tidak menimpa pengaturan guru. */
+function seedDefaults() {
+  var sh = SS.getSheetByName('KONFIGURASI') || ensureSheet('KONFIGURASI');
+  var defaults = [
+    ['PENILAIAN', { weights: { jawaban: 60, proses: 20, interpretasi: 10, refleksi: 10 }, verificationEnabled: false }],
+    ['WAKTU_SOAL', { timing: { key: 'timing', defaultSec: 120, perQuestion: {}, overallSec: 3600, autoLock: false, allowedSec: [30, 60, 120, 180, 240, 300], idleThresholdSec: 15 } }],
+    ['AMBANG_ANOMALI', { anomaly: { key: 'anomaly', reasonableByType: { single: 60, multiple: 90, completion: 30 }, reasonableByModule: { aritmetika: 75, geometri: 85, lingkaran: 80 }, reasonableByQuestion: {}, weights: { A1: 2, A2: 3, A3: 2, B1: 3, B2: 1, B3: 2, C1: 3, C2: 2, C3: 2 }, thresholds: { perluPerhatian: 2, anomaliTinggi: 5 }, classTrial: {} } }],
+    ['ALUR_BELAJAR', { flow: { key: 'flow', stages: [
+      { id: 'pembukaan', label: 'Pembukaan & tujuan belajar', required: true },
+      { id: 'materi', label: 'Materi interaktif', required: true },
+      { id: 'simulasi', label: 'Simulasi & eksplorasi', required: false },
+      { id: 'contoh', label: 'Contoh penyelesaian', required: false },
+      { id: 'latihan', label: 'Latihan terpandu', required: true },
+      { id: 'uraian', label: 'Soal uraian terstruktur', required: true },
+      { id: 'asesmen', label: 'Asesmen HOTS', required: true },
+      { id: 'analisis', label: 'Analisis hasil pengerjaan', required: true },
+      { id: 'umpanbalik', label: 'Umpan balik personal', required: true },
+      { id: 'bukutulis', label: 'Latihan lanjutan di buku tulis', required: true },
+      { id: 'refleksi', label: 'Refleksi', required: true },
+      { id: 'sinkronisasi', label: 'Sinkronisasi ke guru', required: false }
+    ] } }],
+    ['REALTIME', { realtime: { key: 'realtime', lanUrl: '', pollSec: 8, enabled: true } }],
+    ['BUKU_TULIS', { notebook: { key: 'notebook', fotoDiminta: false, catatanGuru: '' } }]
+  ];
+  var n = 0;
+  defaults.forEach(function (d) {
+    if (!findRow(sh, 'kunci', d[0])) {
+      sh.appendRow([d[0], json(d[1]), 'seed:' + Date.now(), new Date().toISOString()]);
+      n++;
+    }
+  });
+  return n;
 }
+
+/** Ganti kode sinkronisasi. Jalankan jika tokenDidahulukan bocor/perlu diganti. */
+function rotateToken() {
+  var sh = SS.getSheetByName('KONFIGURASI') || ensureSheet('KONFIGURASI');
+  var token = Utilities.getUuid() + '-' + Utilities.getUuid();
+  var row = findRow(sh, 'kunci', 'token');
+  if (row) sh.getRange(row, 2).setValue(token);
+  else sh.appendRow(['token', token, 'rotate:' + Date.now(), new Date().toISOString()]);
+  Logger.log('TOKEN BARU: ' + token);
+  alertSafe('Token sinkronisasi baru: ' + token + '\n\nPerbarui token di Pengaturan aplikasi.');
+  return token;
+}
+
+/** Laporan kondisi sheet — bantu diagnosa deployment tanpa membuka satu per satu. */
+function healthCheck() {
+  var lines = [];
+  var token = getToken();
+  lines.push('Token: ' + (token ? 'ada (' + token.slice(0, 8) + '…)' : 'BELUM ADA — jalankan setup()'));
+  Object.keys(HEADERS).forEach(function (name) {
+    var sh = SS.getSheetByName(name);
+    if (!sh) { lines.push(name + ': TIDAK ADA'); return; }
+    var cols = sh.getLastColumn();
+    var rows = Math.max(0, sh.getLastRow() - 1);
+    var h = cols ? sh.getRange(1, 1, 1, cols).getValues()[0] : [];
+    var kurang = HEADERS[name].filter(function (x) { return h.indexOf(x) < 0; });
+    lines.push(name + ': ' + rows + ' baris, ' + cols + ' kolom' + (kurang.length ? ' — KURANG: ' + kurang.join(', ') : ''));
+  });
+  var laporan = lines.join('\n');
+  Logger.log(laporan);
+  return laporan;
+}
+
+/** Uji tulis-baca memakai operasi SISWA, lalu baris uji dihapus lagi. */
+function testPushPull() {
+  var sh = ensureSheet('SISWA');
+  var id = 'TEST-' + Utilities.getUuid().slice(0, 8);
+  var status = upsert(sh, HEADERS.SISWA, 'student_id', id,
+    { student_id: id, nisn: '0000000000', nama: 'Uji Backend', kelas: 'XI UJI' }, 'test:' + id);
+  var ketemu = readSheet('SISWA').filter(function (r) { return r.student_id === id; }).length;
+  var baris = findRow(sh, 'student_id', id);
+  if (baris) sh.deleteRow(baris);
+  var pesan = 'Uji tulis-baca: ' + status + ', baris terbaca ' + ketemu + ', data uji dibersihkan.';
+  Logger.log(pesan);
+  return pesan;
+}
+
+/* =========================================================================
+   SHEET HELPERS — dipakai API
+   ========================================================================= */
+
 function findRow(sh, header, value) {
-  var last = sh.getLastRow(); if (last < 2) return 0;
+  if (!sh || sh.getLastRow() < 2) return 0;
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
   var col = headers.indexOf(header) + 1; if (!col) return 0;
-  var vals = sh.getRange(2, col, last - 1, 1).getValues();
+  var vals = sh.getRange(2, col, sh.getLastRow() - 1, 1).getValues();
   for (var i = 0; i < vals.length; i++) if (String(vals[i][0]) === String(value)) return i + 2;
   return 0;
 }
+
 function upsert(sh, headers, keyHeader, keyValue, rowObj, idemKey) {
   // Proteksi duplikasi berdasarkan idempotency key.
   var idemRow = idemKey ? findRow(sh, 'idempotency_key', idemKey) : 0;
@@ -110,16 +246,18 @@ function upsert(sh, headers, keyHeader, keyValue, rowObj, idemKey) {
     sh.getRange(idx, 1, 1, headers.length).setValues([row]);
     return 'updated';
   }
-  row[headers.indexOf('idempotency_key')] = idemKey || '';
-  row[headers.indexOf('timestamp')] = new Date().toISOString();
+  var iIdx = headers.indexOf('idempotency_key'); if (iIdx >= 0) row[iIdx] = idemKey || '';
+  var tIdx = headers.indexOf('timestamp'); if (tIdx >= 0) row[tIdx] = new Date().toISOString();
   sh.appendRow(row);
   return 'created';
 }
+
 function decodeRow(name, row) {
   var cols = JSON_COLS[name] || [];
   cols.forEach(function (k) { if (row[k] !== undefined && row[k] !== '') row[k] = parse(row[k]); });
   return row;
 }
+
 function readSheet(name) {
   var sh = SS.getSheetByName(name); if (!sh || sh.getLastRow() < 2) return [];
   var vals = sh.getDataRange().getValues();
@@ -127,11 +265,13 @@ function readSheet(name) {
   return vals.slice(1).filter(function (r) { return r.some(function (c) { return c !== '' && c !== null; }); })
     .map(function (r) { var o = {}; h.forEach(function (k, i) { o[k] = r[i]; }); return decodeRow(name, o); });
 }
+
 function getToken() {
   var sh = SS.getSheetByName('KONFIGURASI'); if (!sh || sh.getLastRow() < 2) return '';
   var row = findRow(sh, 'kunci', 'token');
   return row ? String(sh.getRange(row, 2).getValue()) : '';
 }
+
 function output(obj, callback) {
   var txt = JSON.stringify(obj);
   var out;
@@ -145,7 +285,14 @@ function output(obj, callback) {
   } catch (e) { /* versi lama ContentService tidak mendukung setHeader */ }
   return out;
 }
-function unauthorized(e) { return { ok: false, error: 'Kode sinkronisasi tidak valid', debug: e ? String(e.parameter && e.parameter.token).slice(0, 4) : '' }; }
+
+function unauthorized(e) {
+  return { ok: false, error: 'Kode sinkronisasi tidak valid', debug: e ? String(e.parameter && e.parameter.token).slice(0, 4) : '' };
+}
+
+/* =========================================================================
+   PULL / PUSH API
+   ========================================================================= */
 
 var PULL_KEYS = {
   SISWA: 'siswa', SESI_BELAJAR: 'sesi', HASIL_MODUL: 'hasil_modul', JAWABAN_SOAL: 'jawaban',
@@ -159,15 +306,13 @@ function approvalsFrom(rows) {
   return rows.filter(function (r) { return /^(APPROVE_IDENTITY|PERMINTAAN_UBAH_IDENTITAS:)/.test(String(r.kunci)); })
     .map(function (r) { var v = parse(r.nilai); return typeof v === 'object' && v ? v : {}; });
 }
+
 function configFrom(rows) {
   var cfg = {};
   rows.forEach(function (r) {
     var v = parse(r.nilai);
     if (!v || typeof v !== 'object') return;
-    if (r.kunci === 'PENILAIAN') {
-      cfg.weights = v.weights || v;
-      cfg.verificationEnabled = !!(v.verificationEnabled);
-    }
+    if (r.kunci === 'PENILAIAN') { cfg.weights = v.weights || v; cfg.verificationEnabled = !!v.verificationEnabled; }
     if (r.kunci === 'WAKTU_SOAL') cfg.timing = v.timing || v;
     if (r.kunci === 'AMBANG_ANOMALI') cfg.anomaly = v.anomaly || v;
     if (r.kunci === 'ALUR_BELAJAR') cfg.flow = v.flow || v;
@@ -220,7 +365,7 @@ function doPost(e) {
       if (!/^[A-Za-z0-9_:.-]{4,120}$/.test(String(op.idempotency_key || ''))) {
         errors.push({ key: op.idempotency_key, error: 'Idempotency key tidak valid' }); return;
       }
-      var sh = getOrCreateSheet(cfg.sheet, HEADERS[cfg.sheet]);
+      var sh = ensureSheet(cfg.sheet);
       var mapped = cfg.map(p);
       var status = upsert(sh, HEADERS[cfg.sheet], cfg.key, mapped[cfg.key], mapped, op.idempotency_key);
       (status === 'skipped' ? skipped : processed).push(op.idempotency_key);
