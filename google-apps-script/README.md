@@ -73,6 +73,7 @@ Semua fungsi mencatat hasil ke **Log** (`View → Logs`) dan sebagian menampilka
 
 - **Push (`doPost`)**: aplikasi mengirim antrean operasi beserta `idempotency_key`. Skrip memeriksa kunci tersebut; jika sudah ada, operasi dilewati (`skipped`). Pengiriman ulang aman dan tidak membuat duplikat.
 - **Jadwal siswa**: default **setiap 30 menit** (bisa 5/15/60 menit). Tiap jadwal mengirim antrean + draf berstatus `draf` dari `JAWABAN_SOAL`, `URAIAN_TERPANDU`, `LATIHAN_BUKU`, dan `WAKTU_SOAL`. Baris draf akan diperbarui (bukan diduplikat) saat siswa menyelesaikan tugas, karena `upsert` menggunakan `response_id`/`id`/`key` sebagai kunci baris. Dashboard tidak memasukkan draf ke rekap nilai akhir.
+- **Cadangan penuh dari tombol guru** memakai jalur LAN `server.js` (`/api/requests` + `/api/backups`), bukan Apps Script/Sheets, dan tidak menimpa baris penilaian.
 - **Pull (`doGet`)**:
   - `action=pull&full=0` → konfigurasi ringan, umpan balik, keputusan persetujuan identitas, dan pesan untuk siswa.
   - `action=pull&full=1` → seluruh sheet (dipakai guru).

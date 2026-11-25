@@ -18,15 +18,19 @@ const mime = {
   '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.pdf': 'application/pdf'
 };
 
-// Bus memori: hanya pesan pengingat/tindakan, BUKAN jawaban siswa.
-// Jawaban tetap tersimpan di IndexedDB dan Google Sheets.
-const bus = { alerts: [], actions: [], warnings: [] };
+// Bus memori: pengingat/tindakan + permintaan/cadangan lokal SESAMA perangkat
+// yang membuka aplikasi. Bukan pengawasan diam-diam: siswa diberi tahu saat
+// guru meminta cadangan. Jawaban tetap tersimpan di IndexedDB dan Google Sheets.
+const bus = { alerts: [], actions: [], warnings: [], requests: [], backups: [] };
 const CAP = 5000;
+const BATAS = { requests: 200, backups: 10 };
+let seq = 0;
 const push = (kind, item) => {
   if (!item || !item.id) return;
   const now = new Date().toISOString();
-  bus[kind].push({ ...item, diterima_server: now });
-  if (bus[kind].length > CAP) bus[kind].splice(0, bus[kind].length - CAP);
+  bus[kind].push({ ...item, diterima_server: now, seq: ++seq });
+  const batas = BATAS[kind] || CAP;
+  if (bus[kind].length > batas) bus[kind].splice(0, bus[kind].length - batas);
 };
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -38,11 +42,16 @@ function json(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors });
   res.end(JSON.stringify(obj));
 }
-function body(req) {
+function body(req, maxBytes = 2e6) {
   return new Promise((resolveBody, reject) => {
     let raw = '';
-    req.on('data', c => { raw += c; if (raw.length > 2e6) reject(new Error('Permintaan terlalu besar')); });
-    req.on('end', () => { try { resolveBody(raw ? JSON.parse(raw) : {}); } catch (e) { reject(e); } });
+    let kebesaran = false;
+    req.on('data', c => {
+      if (kebesaran) return;
+      raw += c;
+      if (raw.length > maxBytes) { kebesaran = true; reject(new Error('Permintaan terlalu besar')); req.destroy(); }
+    });
+    req.on('end', () => { if (kebesaran) return; try { resolveBody(raw ? JSON.parse(raw) : {}); } catch (e) { reject(e); } });
   });
 }
 
@@ -59,18 +68,35 @@ http.createServer(async (req, res) => {
       if (req.method === 'GET' && pathname === '/api/live') {
         const since = url.searchParams.get('since') || '';
         const sid = url.searchParams.get('student_id') || '';
-        // Gunakan cap waktu penerimaan server agar perbedaan jam perangkat tidak membuat pesan terlewat.
-        const fresh = k => bus[k].filter(x => !since || String(x.diterima_server || x.waktu || x.created_at || '') > since);
+        const role = url.searchParams.get('role') || '';
+        // Gunakan nomor urut server agar perbedaan jam perangkat tidak membuat pesan terlewat.
+        // Klien lama yang masih mengirim cap waktu tetap didukung.
+        const fresh = k => bus[k].filter(x => {
+          if (!since) return true;
+          if (/^\d+$/.test(since)) return Number(x.seq) > Number(since);
+          return String(x.diterima_server || x.waktu || x.created_at || '') > since;
+        });
+        const untukSiswa = k => sid ? fresh(k).filter(x => !x.student_id || x.student_id === sid) : fresh(k);
         json(res, 200, {
-          ok: true, server_time: new Date().toISOString(),
+          ok: true, seq, server_time: new Date().toISOString(),
           alerts: fresh('alerts'), actions: fresh('actions'),
-          warnings: sid ? fresh('warnings').filter(x => !x.student_id || x.student_id === sid) : fresh('warnings')
+          warnings: untukSiswa('warnings'),
+          // Siswa hanya melihat permintaan untuk dirinya; cadangan hanya untuk guru.
+          requests: role === 'student' ? untukSiswa('requests') : [],
+          backups: role === 'teacher' ? untukSiswa('backups') : []
         });
         return;
       }
-      if (req.method === 'POST' && ['/api/alerts', '/api/actions', '/api/warnings'].includes(pathname)) {
-        const item = await body(req);
+      if (req.method === 'POST' && ['/api/alerts', '/api/actions', '/api/warnings', '/api/requests', '/api/backups'].includes(pathname)) {
+        const besar = pathname === '/api/backups' ? 30e6 : 2e6;
+        const item = await body(req, besar);
         const kind = pathname.split('/').pop();
+        if (kind === 'requests' && !item?.student_id) {
+          json(res, 400, { ok: false, error: 'Permintaan harus menyebut student_id' }); return;
+        }
+        if (kind === 'backups' && (!item?.request_id || !item?.student_id || !item?.backup || typeof item.backup.data !== 'object')) {
+          json(res, 400, { ok: false, error: 'Format cadangan tidak valid' }); return;
+        }
         push(kind, item);
         json(res, 200, { ok: true, id: item.id, diterima_server: bus[kind].at(-1).diterima_server });
         return;

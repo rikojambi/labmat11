@@ -7,10 +7,11 @@ import { escapeHtml, formatDateTime, formatDurasi, openModal, closeModal, confir
 import { getFlowConfig, setFlowConfig } from '../js/flow.js';
 import { getTimingConfig, setTimingConfig, ALLOWED_SECONDS } from '../js/timing.js';
 import { getAnomalyConfig, setAnomalyConfig } from '../js/anomaly.js';
-import { teacherAction, startTeacherPolling, setRealtimeConfig, applyPulledRealtime } from '../js/realtime.js';
+import { teacherAction, startTeacherPolling, setRealtimeConfig, applyPulledRealtime, requestLocalBackup } from '../js/realtime.js';
 import { ensureTeacherGate, lock as lockTeacher, hasPin, setPin, hapusPin } from '../js/teacher-auth.js';
 
 let data = null, stats = null, pollStop = null;
+const backupDilihat = new Set(); // cegah render ulang tanpa henti saat polling menemukan cadangan lama
 const view = document.getElementById('teacherView');
 const routes = ['ringkasan', 'siswa', 'nilai', 'jawaban', 'proses', 'umpan', 'monitoring', 'pengaturan'];
 
@@ -94,10 +95,12 @@ const indikatorTeks = rows => (rows || []).map(i => typeof i === 'string' ? i : 
 
 async function pageMonitoring() {
   if (pollStop) { pollStop(); pollStop = null; }
-  const [alerts, anomalies, actions, warnings, timingRows, responses, sessions, essays, notebook, queue, rtCfg] = await Promise.all([
+  const [alerts, anomalies, actions, warnings, timingRows, responses, sessions, essays, notebook, queue, localBackups, rtCfg] = await Promise.all([
     getAll('alerts'), getAll('anomalies'), getAll('teacherActions'), getAll('warnings'), getAll('timing'), getAll('responses'),
-    getAll('sessions'), getAll('essayResponses'), getAll('notebook'), getAll('syncQueue'), getConfig('realtime')
+    getAll('sessions'), getAll('essayResponses'), getAll('notebook'), getAll('syncQueue'), getAll('localBackups'), getConfig('realtime')
   ]);
+  const cadangan = localBackups.filter(x => x.jenis === 'cadangan').sort((a, b) => String(b.waktu).localeCompare(String(a.waktu)));
+  for (const x of cadangan) backupDilihat.add(x.id);
   const siswa = data?.siswa || await getAll('identity');
   const nameOf = sid => siswa.find(s => s.student_id === sid)?.nama || sid;
   const classOf = sid => siswa.find(s => s.student_id === sid)?.kelas || '—';
@@ -123,10 +126,18 @@ async function pageMonitoring() {
   }).join('');
   view.innerHTML = `<div class="reader"><div class="row between"><div><span class="pill">Pemantauan satu LAN + cadangan Sheets</span><h2 class="mt-1">Pemantauan Pengerjaan Langsung</h2></div>
     <div class="row"><button class="btn btn-ghost btn-sm" id="monitorRefresh">Muat ulang</button>
+      <button class="btn btn-primary btn-sm" id="bkRequest">Ambil data lokal siswa</button>
       <button class="btn btn-primary btn-sm" id="monitorSync">Sinkronkan antrean</button></div></div>
     <div class="notice">Indikator hanya nasihat pedagogis, bukan vonis otomatis. Setiap tindakan guru dicatat dan dapat dikomentari siswa. Tidak ada kamera, screenshot tersembunyi, atau perekaman keyboard.</div>
     <div class="grid cols-4 mt-2"><div class="stat"><span>Siswa dipantau</span><strong>${siswa.length}</strong></div><div class="stat"><span>Peringatan aktif</span><strong>${alerts.filter(a => a.status !== 'diperiksa' && a.status !== 'diabaikan').length}</strong></div>
-      <div class="stat"><span>Tindakan guru</span><strong>${actions.length}</strong></div><div class="stat"><span>Polling</span><strong>${rtCfg.pollSec || 8} dtk</strong></div></div>
+      <div class="stat"><span>Tindakan guru</span><strong>${actions.length}</strong></div><div class="stat"><span>Cadangan diterima</span><strong>${cadangan.length}</strong></div></div>
+    <div class="card mt-2"><div class="row between"><div><h3>Cadangan data lokal siswa</h3>
+      <p class="muted">Ambil salinan seluruh IndexedDB dari perangkat siswa yang sedang membuka aplikasi pada server lokal yang sama. Siswa melihat notifikasi dan riwayat permintaan; tidak ada pengambilan diam-diam.</p></div></div>
+      ${cadangan.length ? `<div>${cadangan.map(x => `<div class="log-row"><b>${escapeHtml(x.nama || nameOf(x.student_id))}</b> · ${escapeHtml(x.student_id)} · ${escapeHtml(formatDateTime(x.waktu))}
+        · ${x.jumlah_store || Object.keys(x.backup?.data || {}).length} penyimpanan
+        <div class="row mt-1"><button class="btn btn-ghost btn-sm" data-bk-download="${escapeHtml(x.id)}">⬇ Unduh JSON</button>
+          <button class="btn btn-soft btn-sm" data-bk-detail="${escapeHtml(x.id)}">Lihat ringkasan</button></div></div>`).join('')}</div>`
+        : '<p class="hint-text">Belum ada cadangan. Klik “Ambil data lokal siswa”, lalu tunggu perangkat siswa merespons.</p>'}</div>
     <h3 class="mt-3">Status siswa</h3><div class="monitor-grid">${grid || '<div class="notice">Belum ada siswa.</div>'}</div>
     <div class="grid cols-2 mt-3"><div class="card"><h3>Log peringatan</h3><div>${alerts.sort((a, b) => String(b.waktu).localeCompare(String(a.waktu))).slice(0, 30).map(a => `<div class="log-row"><b>${escapeHtml(nameOf(a.student_id))}</b> · ${escapeHtml(a.question_id || '')} · <span class="tag ${a.tingkat === 'ANOMALI TINGGI' ? 'bad' : 'warn'}">${escapeHtml(a.tingkat)}</span><br>
       ${escapeHtml(indikatorTeks(a.indikator))}${a.penjelasan_siswa ? `<br><i>Penjelasan siswa: ${escapeHtml(a.penjelasan_siswa)}</i>` : ''}</div>`).join('') || '<div class="hint-text">Belum ada peringatan.</div>'}</div></div>
@@ -143,6 +154,22 @@ async function pageMonitoring() {
     const res = await processQueue({ manual: true });
     toast(res.message, res.ok ? 'ok' : 'bad'); await load(true);
   };
+  view.querySelector('#bkRequest').onclick = () => mintaCadangan(siswa);
+  view.querySelectorAll('[data-bk-download]').forEach(b => b.onclick = async () => {
+    const x = await get('localBackups', b.dataset.bkDownload);
+    if (!x?.backup) return;
+    downloadFile(`cadangan-${x.student_id}-${String(x.waktu).slice(0, 10)}.json`, JSON.stringify(x.backup, null, 2), 'application/json');
+    toast('Cadangan diunduh ke perangkat guru.', 'ok');
+  });
+  view.querySelectorAll('[data-bk-detail]').forEach(b => b.onclick = async () => {
+    const x = await get('localBackups', b.dataset.bkDetail);
+    if (!x?.backup) return;
+    const baris = Object.entries(x.backup.data || {}).map(([k, rows]) => `<tr><td>${escapeHtml(k)}</td><td>${Array.isArray(rows) ? rows.length : 0}</td></tr>`).join('');
+    openModal('Ringkasan cadangan ' + escapeHtml(x.nama || x.student_id), `<p class="hint-text">${escapeHtml(formatDateTime(x.waktu))} · permintaan ${escapeHtml(x.request_id || '')}</p>
+      <div class="table-wrap"><table><thead><tr><th>Penyimpanan</th><th>Jumlah data</th></tr></thead><tbody>${baris}</tbody></table></div>
+      <div class="notice">Ini salinan penuh dari perangkat siswa. Jangan diimpor ke dashboard karena dapat menimpa identitas/PIN guru; unduh untuk arsip atau tinjauan.</div>
+      <div class="row mt-2"><button class="btn btn-primary" data-close-modal>Tutup</button></div>`, { root: 'teacherModalRoot', wide: true });
+  });
   view.querySelectorAll('[data-monitor]').forEach(b => b.onclick = () => showStudentDrawer(b.dataset.monitor, { alerts, anomalies, actions, warnings, responses, timingRows }));
   view.querySelectorAll('[data-essay-grade]').forEach(b => b.onclick = () => showEssayGrading(b.dataset.essayGrade));
   view.querySelectorAll('[data-nb-grade]').forEach(b => b.onclick = () => showNotebookReview(b.dataset.nbGrade));
@@ -151,9 +178,32 @@ async function pageMonitoring() {
     // Jangan menimpa halaman lain (misalnya Pengaturan) bila polling masih berjalan.
     if ((location.hash.replace(/^#\/?/, '') || 'ringkasan') !== 'monitoring') return;
     if (document.querySelector('#teacherModalRoot .modal-backdrop')) return;
-    const adaBaru = ['alerts', 'actions', 'warnings'].some(k => Array.isArray(snap?.[k]) && snap[k].length > 0);
+    const cadanganBaru = (snap?.backups || []).filter(b => b?.id && !backupDilihat.has(b.id));
+    for (const b of cadanganBaru) backupDilihat.add(b.id);
+    const adaBaru = cadanganBaru.length > 0 || ['alerts', 'actions', 'warnings'].some(k => Array.isArray(snap?.[k]) && snap[k].length > 0);
     if (adaBaru) pageMonitoring();
   }, rtCfg.pollSec || 8);
+}
+
+/** Tombol guru: meminta salinan seluruh data lokal dari perangkat siswa yang sedang membuka aplikasi. */
+function mintaCadangan(siswa) {
+  const daftar = siswa.map(s => `<option value="${escapeHtml(s.student_id)}">${escapeHtml(s.nama || s.student_id)} — ${escapeHtml(s.student_id)}</option>`).join('');
+  openModal('Ambil data lokal siswa', `<div class="notice warn">Perangkat siswa harus membuka LABMAT dan terhubung ke server lokal yang sama. Siswa akan melihat notifikasi saat salinan diambil.</div>
+    ${field('Siswa', `<input id="bkSid" list="bkDaftar" placeholder="Pilih atau ketik student_id" autocomplete="off"><datalist id="bkDaftar">${daftar}</datalist>`)}
+    ${field('Catatan untuk siswa (opsional)', '<input id="bkCatatan" placeholder="Misalnya: klarifikasi progres belajar">')}
+    <div class="row mt-2"><button class="btn btn-primary" id="bkKirim">Minta cadangan sekarang</button><button class="btn btn-ghost" data-close-modal>Batal</button></div>`,
+    { root: 'teacherModalRoot', onMount: modal => {
+      modal.querySelector('#bkKirim').onclick = async () => {
+        const sid = modal.querySelector('#bkSid').value.trim();
+        if (!sid) { toast('Pilih siswa terlebih dahulu.', 'bad'); return; }
+        const rec = siswa.find(s => s.student_id === sid);
+        try {
+          const req = await requestLocalBackup({ student_id: sid, nama: rec?.nama || '', catatan: modal.querySelector('#bkCatatan').value.trim() });
+          closeModal('teacherModalRoot');
+          toast(req ? 'Permintaan terkirim. Cadangan muncul otomatis di halaman ini.' : 'Gagal mengirim permintaan. Periksa koneksi ke server lokal.', req ? 'ok' : 'bad');
+        } catch (e) { toast('Gagal: ' + e.message, 'bad'); }
+      };
+    } });
 }
 
 function showStudentDrawer(sid, store) {

@@ -1,5 +1,5 @@
 /* LABMAT SMK XI service worker — offline-first app shell (revisi v2) */
-const CACHE = 'labmat-smk-xi-v7';
+const CACHE = 'labmat-smk-xi-v8';
 const SHELL = [
   './', './index.html', './student.html', './teacher.html', './manifest.json',
   './css/styles.css', './assets/icon.svg', './assets/icon-192.png', './assets/icon-512.png',

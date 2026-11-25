@@ -40,7 +40,18 @@ async function boot() {
 
 function startStudentWarnings() {
   if (!identity || window.__labmatWarningPoll) return;
-  window.__labmatWarningPoll = startStudentPolling(identity.student_id, renderWarningBanner, 8);
+  window.__labmatWarningPoll = startStudentPolling(identity.student_id, renderWarningBanner, 8, tampilkanNotifikasiCadangan);
+}
+
+/** Siswa diberi tahu saat guru mengambil salinan data lokal — tidak ada pengambilan diam-diam. */
+function tampilkanNotifikasiCadangan(request, backup) {
+  const data = backup?.data || {};
+  const jumlah = Object.values(data).reduce((n, rows) => n + (Array.isArray(rows) ? rows.length : 0), 0);
+  openModal('Data lokal diambil guru', `<div class="notice warn">Guru meminta salinan pekerjaanmu dari perangkat ini. Permintaan ini terlihat dan tercatat. Tidak ada kamera, screenshot tersembunyi, atau perekaman keyboard.</div>
+    <p>Dikirim <b>${jumlah}</b> data dari <b>${Object.keys(data).length}</b> penyimpanan aplikasi pada ${escapeHtml(formatDateTime(nowISO()))}.</p>
+    <p class="hint-text">ID permintaan: ${escapeHtml(request?.id || '')} · Tujuan: server lokal sekolah (bukan pihak ketiga).</p>
+    <div class="row mt-2"><button class="btn btn-primary" data-close-modal>Mengerti</button></div>`);
+  toast('Cadangan data lokalmu dikirim ke guru.', 'ok');
 }
 
 async function renderWarningBanner(list = []) {
@@ -324,6 +335,8 @@ async function pagePengaturan() {
   const feat = await getConfig('features');
   const pending = await pendingChange();
   const q = await queueSummary();
+  const riwayatCadangan = (await getAll('localBackups')).filter(x => x.jenis === 'permintaan')
+    .sort((a, b) => String(b.waktu).localeCompare(String(a.waktu))).slice(0, 10);
   view.innerHTML = `<div class="reader"><span class="pill">Pengaturan</span><h2 class="mt-1">Identitas &amp; Sinkronisasi</h2>
     <div class="card mb-2"><div class="row between"><h3>Data identitas siswa</h3><span class="tag ${identity.locked ? 'ok' : 'bad'}">${identity.locked ? 'Terkunci' : 'Terbuka'}</span></div>
       ${identityCardHTML(identity, pending)}
@@ -342,6 +355,8 @@ async function pagePengaturan() {
         Verifikasi pemahaman: <b>${feat.verificationEnabled ? 'AKTIF (diatur guru)' : 'nonaktif'}</b>${feat.teacherControlled ? ' · terkontrol guru' : ''}</div></div>
     <div class="card mb-2"><h3>Bobot penilaian</h3><p class="muted">Bobot lokal saat ini. Jika guru mengirim bobot lewat Google Sheets, nilai guru yang dipakai.</p>
       <div class="kpi-grid">${Object.entries(weights).filter(([k]) => k !== 'key').map(([k, v]) => `<div class="stat"><span>${k}</span><strong>${v}%</strong></div>`).join('')}</div></div>
+    <div class="card mb-2"><h3>Riwayat permintaan cadangan guru</h3><p class="muted">Setiap kali guru mengambil salinan data lokal, kejadian ini dicatat di perangkatmu.</p>
+      ${riwayatCadangan.length ? `<div class="mini-list">${riwayatCadangan.map(r => `<li>${escapeHtml(formatDateTime(r.waktu))} · ${escapeHtml(r.student_id)} · ${escapeHtml(r.request_id)}</li>`).join('')}</div>` : '<p class="hint-text">Belum ada permintaan.</p>'}</div>
     <div class="card"><h3>Data lokal &amp; cadangan</h3><p class="muted">Seluruh pekerjaan tersimpan di IndexedDB. Unduh cadangan untuk berpindah perangkat atau Import di dashboard guru.</p>
       <div class="row"><button class="btn btn-ghost" id="exportBackup">⬇ Unduh cadangan JSON</button><label class="btn btn-ghost">⬆ Impor cadangan<input type="file" id="importBackup" accept="application/json" hidden></label>
         <button class="btn btn-danger" id="resetLocal">Hapus semua data lokal</button></div></div></div>`;

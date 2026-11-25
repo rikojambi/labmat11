@@ -21,6 +21,7 @@ ok(normalizeLimit('abc') === 120 && normalizeLimit(0) === 120, 'nilai waktu tida
 // --- Alur 12 tahap & store v2 ---
 ok(STORES.includes('timing') && STORES.includes('alerts') && STORES.includes('anomalies') && STORES.includes('teacherActions') && STORES.includes('warnings'), 'store realtime v2 belum ada');
 ok(STORES.includes('essayResponses') && STORES.includes('notebook') && STORES.includes('monitor'), 'store v2 lainnya belum ada');
+ok(STORES.includes('localBackups'), 'store cadangan lokal guru/siswa belum ada');
 const flowSrc = src('../js/database.js'); // daftar 12 tahap ada pada DEFAULT config 'flow'
 for (const id of ['pembukaan', 'materi', 'simulasi', 'contoh', 'latihan', 'uraian', 'asesmen', 'analisis', 'umpanbalik', 'bukutulis', 'refleksi', 'sinkronisasi']) {
   ok(flowSrc.includes(`'${id}'`), `tahap alur ${id} tidak ditemukan`);
@@ -120,6 +121,7 @@ ok(dashboard.includes('ensureTeacherGate'), 'dashboard guru harus memakai gerban
 
 // --- Pengiriman berkala siswa (30 menit) + draf ---
 const dbSrc = src('../js/database.js');
+ok(dbSrc.includes('const VERSION = 4'), 'versi IndexedDB harus naik ke 4 (store localBackups)');
 ok(dbSrc.includes('intervalSec: 1800'), 'jeda sinkronisasi bawaan harus 30 menit');
 const syncSrc = src('../js/sync.js');
 ok(/syncIntervalSec|intervalSec/.test(syncSrc), 'startAutoSync harus memakai jeda dari konfigurasi');
@@ -131,9 +133,23 @@ ok((draftSrc.match(/status: 'draf'/g) || []).length >= 3, 'semua draf harus diki
 const anaSrc = src('../js/analytics.js');
 ok(anaSrc.includes('final(r)') || anaSrc.includes('final(x)'), 'draf tidak boleh masuk rekap nilai akhir');
 
+// --- Tombol guru mengambil semua data lokal siswa ---
+const serverSrc = src('../server.js');
+ok(serverSrc.includes("'/api/requests'") && serverSrc.includes("'/api/backups'"), 'server harus menyediakan endpoint permintaan & cadangan');
+ok(serverSrc.includes("role === 'student' ? untukSiswa('requests') : []") && serverSrc.includes("role === 'teacher' ? untukSiswa('backups') : []"),
+  'permintaan hanya untuk siswa dan cadangan hanya untuk guru');
+const rtSrc = src('../js/realtime.js');
+ok(rtSrc.includes('requestLocalBackup') && rtSrc.includes('exportBackup'), 'realtime harus mendukung permintaan & pengiriman cadangan');
+ok(rtSrc.includes("jenis: 'cadangan'") && rtSrc.includes("jawabPermintaanCadangan"), 'cadangan harus disimpan di guru dan dijawab sekali oleh siswa');
+const dashSrc = src('../teacher/dashboard.js');
+ok(dashSrc.includes('Ambil data lokal siswa') && dashSrc.includes('data-bk-download'), 'dashboard guru harus punya tombol & unduhan cadangan');
+const appSrc = src('../js/app.js');
+ok(appSrc.includes('tampilkanNotifikasiCadangan') && appSrc.includes('Riwayat permintaan cadangan guru'),
+  'siswa harus diberi tahu dan melihat riwayat pengambilan data lokal');
+
 // --- Service worker mutakhir ---
 const sw = src('../sw.js');
-ok(sw.includes('labmat-smk-xi-v7'), 'versi cache service worker harus v7');
+ok(sw.includes('labmat-smk-xi-v8'), 'versi cache service worker harus v8');
 for (const f of ['flow.js', 'timing.js', 'anomaly.js', 'realtime.js', 'feedback.js', 'essay.js', 'notebook.js', 'teacher-auth.js', 'draft-sync.js', 'data/essays.js', 'data/notebook.js']) {
   ok(sw.includes(f), `precache service worker belum memuat ${f}`);
 }

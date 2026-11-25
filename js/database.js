@@ -2,13 +2,14 @@
 import { nowISO, uid } from './utils.js';
 
 const DB_NAME = 'labmat-db';
-const VERSION = 3;
+const VERSION = 4;
 let dbPromise = null;
 
 // Store lama dipertahankan persis; store baru ditambahkan pada migrasi v2.
 export const STORES = [
   'identity', 'sessions', 'responses', 'processes', 'reflections', 'notes', 'progress', 'config', 'syncQueue', 'outbox', 'feedback',
-  'timing', 'alerts', 'anomalies', 'teacherActions', 'warnings', 'essayResponses', 'notebook', 'monitor'
+  'timing', 'alerts', 'anomalies', 'teacherActions', 'warnings', 'essayResponses', 'notebook', 'monitor',
+  'localBackups' // penanda permintaan cadangan (siswa) + cadangan diterima (guru)
 ];
 
 export function openDB() {
@@ -43,6 +44,7 @@ export function openDB() {
       make('essayResponses', 'response_id', { byStudent: 'student_id', byItem: 'item_id' });
       make('notebook', 'id', { byStudent: 'student_id', byItem: 'item_id' });
       make('monitor', 'student_id');
+      make('localBackups', 'id', { byStudent: 'student_id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error || new Error('Gagal membuka IndexedDB'));

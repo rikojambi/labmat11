@@ -25,6 +25,8 @@ Alternatif manual:
 node server.js 8765
 ```
 
+Untuk mengambil data dari siswa di perangkat lain dalam satu jaringan, jalankan `node server.js 8765 --lan` dan buka dashboard lewat IP komputer guru (misalnya `http://192.168.1.10:8765/teacher.html`).
+
 Lalu buka:
 - `http://localhost:8765/index.html` — halaman pilihan peran
 - `http://localhost:8765/student.html` — antarmuka siswa
@@ -61,6 +63,12 @@ Buka aplikasi di Chrome/Edge, lalu pilih **Install app** dari menu browser. Sete
 - Pekerjaan tetap tersimpan di IndexedDB **seketika** saat diketik; tombol **Sinkronisasi manual** bisa dipakai kapan saja tanpa menunggu jadwal.
 - Data lokal **tidak dihapus** sebelum server mengonfirmasi penerimaan.
 - Backend Apps Script gratis → Google Sheets (16 sheet). Lihat [`google-apps-script/README.md`](google-apps-script/README.md).
+
+### Ambil data lokal siswa (tombol guru)
+- Dashboard → **Pemantauan Pengerjaan Langsung** → **Ambil data lokal siswa**. Pilih siswa, lalu permintaan dikirim lewat server lokal (`server.js`). Aplikasi siswa yang sedang terbuka menjawab dengan salinan **seluruh IndexedDB** (identitas, jawaban, proses, uraian, buku tulis, telemetri, antrean, dan pengaturan).
+- Siswa melihat notifikasi di layar dan riwayat di **Pengaturan → Riwayat permintaan cadangan guru**. Tidak ada pengambilan diam-diam: tanpa kamera, screenshot tersembunyi, atau perekaman keyboard.
+- Cadangan yang diterima muncul otomatis di halaman Pemantauan. Guru bisa **Unduh JSON** atau **Lihat ringkasan** jumlah data per penyimpanan. Jangan mengimpor cadangan siswa ke dashboard karena dapat menimpa identitas/PIN guru.
+- Permintaan diproses sekali per ID, dan data lokal siswa tidak dihapus setelah dikirim.
 
 ---
 
